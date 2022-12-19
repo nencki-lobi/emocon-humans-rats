@@ -1,0 +1,85 @@
+---
+output:
+  html_document:
+    theme: spacelab
+---
+
+# Evaluation of the demonstrator and the observational US
+
+This analysis investigates the evaluation of the demonstrators by the observers.
+
+```{r, message=FALSE}
+library('tidyverse')
+library('ggpubr')
+library('psych')
+library('ini')
+```
+
+We are working with the following files
+```{r}
+config <- read.ini("../config.ini")
+tab_file <- file.path(config$DEFAULT$QUESTIONNAIRE_DIR, 'table.tsv')
+```
+
+The analysis is based on the observers from the friend group:
+
+```{r}
+df_ca <- read_tsv(tab_file, col_types=cols()) %>%
+    select(
+        c("subject_id", "label", "role", "group", "demonstrator_id", starts_with("ED"), CONT_shock_pleasant)
+    ) %>%
+    filter(role == "OBS") %>%
+    filter(group == "friend")
+```
+
+The ratings can be plotted:
+
+```{r, warning=FALSE}
+ed_plot <- df_ca %>%
+    select(starts_with("ED")) %>%
+    pivot_longer(cols = starts_with("ED")) %>%  #creates name, value
+    mutate(
+        # change the variables names & convert to factor
+        name = as_factor(str_replace(name, "ED_", ""))
+    ) %>%
+    mutate(
+        # change order and then names to control how they appear in the figure
+        name = fct_recode(
+            fct_relevel(name, c("discomfort", "expressive", "natural", "empathy", "identify")),
+            expressiveness = "expressive",
+            naturalness = "natural",
+            identifying = "identify"
+        )
+    ) %>%
+    ggdotplot(x = "name", y = "value", facet.by = "name",
+              dotsize = 0.4, alpha = 0.35, nrow = 1, ncolumn = 5, font.label = 1) %>%
+    ggadd("boxplot", alpha = 0) %>%            # this way, boxplot's on top
+    ggpar(yticks.by = 1, font.ytickslab = 8, palette = c("#D55E00", "#0072B2")) %>%
+    + rremove("x.text") + rremove("x.ticks") + rremove("xlab") + theme(strip.text.x = element_text(size = 8))
+
+
+if(!dir.exists("figures")) {
+    dir.create("figures")
+}
+
+target_ppi = 500
+
+ggexport(
+    ed_plot,
+    filename = "figures/evaluation_of_demonstrator_dotplot.tiff",
+    width = 5.51 * target_ppi,
+    height = 3.86 * target_ppi,
+    res = target_ppi,
+    pointsize = 8
+)
+ed_plot
+```
+
+Summary statistics for the ratings, calculated using `describeBy` from the `psych` package:
+
+```{r, warning=FALSE}
+dsg <- df_ca %>%
+    select(where(is.numeric)) %>%
+    describeBy(IQR=TRUE)
+dsg
+```
